@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+'''
+Path planning in non-static environment: Kinodynamic RRT method algorithm
+to push a movable obstacle to a target area
+'''
 import math, time, random
 from datetime import datetime
 import numpy as np
@@ -11,6 +15,7 @@ from Box2D import b2FixtureDef, b2CircleShape
 
 
 class World(object):
+    ##---Function to calculate the next movements in all 8 possible directions---##
     def calculate_coordinates(self, x, y, target_x, target_y):
         coordinates = {}
         ##---For each movement the dictionary key is the distance---##
@@ -23,20 +28,9 @@ class World(object):
         coordinates[np.sqrt(np.square(abs(x+1) - abs(target_x)) + np.square(abs(y-1) - abs(target_y)))] = (x + 1, y - 1, -3*math.pi/4)  ## Move SE
         coordinates[np.sqrt(np.square(abs(x+1) - abs(target_x)) + np.square(abs(y) - abs(target_y)))]  = (x + 1, y, -math.pi/2)      ## Move E
         coordinates[np.sqrt(np.square(abs(x+1) - abs(target_x)) + np.square(abs(y+1) - abs(target_y)))] = (x + 1, y + 1, -math.pi/4)  ## Move NE
-
-        # coordinates[np.sqrt(np.square(abs(x) - abs(target_x)) + np.square(abs(y+2) - abs(target_y)))]  = (x, y + 2, 0)  ## Move N
-        # coordinates[np.sqrt(np.square(abs(x-2) - abs(target_x)) + np.square(abs(y+2) - abs(target_y)))] = (x - 2, y + 2, math.pi/4)  ## Move NW
-        # coordinates[np.sqrt(np.square(abs(x-2) - abs(target_x)) + np.square(abs(y) - abs(target_y)))]  = (x - 2, y, math.pi/2)      ## Move W
-        # coordinates[np.sqrt(np.square(abs(x-2) - abs(target_x)) + np.square(abs(y-2) - abs(target_y)))] = (x - 2, y - 2, 3*math.pi/4)  ## Move SW
-        # coordinates[np.sqrt(np.square(abs(x) - abs(target_x)) + np.square(abs(y-2) - abs(target_y)))]  = (x, y - 2, math.pi/2)  ## Move S
-        # coordinates[np.sqrt(np.square(abs(x+2) - abs(target_x)) + np.square(abs(y-2) - abs(target_y)))] = (x + 2, y - 2, -3*math.pi/4)  ## Move SE
-        # coordinates[np.sqrt(np.square(abs(x+2) - abs(target_x)) + np.square(abs(y) - abs(target_y)))]  = (x + 2, y, -math.pi/2)      ## Move E
-        # coordinates[np.sqrt(np.square(abs(x+2) - abs(target_x)) + np.square(abs(y+2) - abs(target_y)))] = (x + 2, y + 2, -math.pi/4)  ## Move NE
         return coordinates
 
-    def calculate_distance (x, y, target_x, target_y):
-        return np.sqrt(np.square(abs(x) - abs(target_x)) + np.square(abs(y) - abs(target_y)))
-
+    ##---Function to find the closest node in the graph to a target position---##
     def find_closest_node(self, graph, robot_target_x, robot_target_y, obstacle_target_x, obstacle_target_y):
         result_graph = {}
         counter = 0
@@ -65,20 +59,17 @@ class World(object):
         self.gravity = (0, 0)
         self.doSleep = True
         # ##---pygame setup---##
-        pygame.display.set_caption('Path finding')
+        pygame.display.set_caption('Path finding: Kinodynamic RRT')
         self.clock = pygame.time.Clock()
 
+        ##---Create the world---##
+        self.my_world = world(gravity=(0, 0), doSleep=self.doSleep)
+        self.number_of_runs = num_run
+        self.time_list = tim_lis
         self.robotCategory = 0x0001
         self.objectCategory = 0x0002
         self.robotMask = 0xFFFF ^ self.robotCategory
         self.objectMask = 0xFFFF ^ self.objectCategory
-
-        # Create the world
-        self.my_world = world(gravity=(0, 0), doSleep=self.doSleep)
-        self.number_of_runs = num_run
-        ##---Create a new list for storing the times of executions if it is the first run---##
-        #if (self.number_of_runs == 0): time_list = []
-        self.time_list = tim_lis
 
         ##---Vertices for the moveable obstacle---##
         vertices1 = [(-0.4, -0.2), (-0.2, -0.4), (0.2, -0.4), (0.4, -0.2), (0.4, 0.2), (0.2, 0.4), (-0.2, 0.4), (-0.4, 0.2)]
@@ -92,7 +83,7 @@ class World(object):
         right_short_arm = [(0.8, 1.9), (0.7, 1.9), (1.1, 1.6), (1.2, 1.6)]
         test_robot = [(-2.0, 2.0), (-2.0, -2.0), (2.0, -2.0), (2.0, 2.0)]
 
-        # ##---Create static bodies for walls and obstacles---##
+        # ##---Static obstacles of the environment---##
         # wall_bottom = self.my_world.CreateStaticBody(position=(30, 0.1), shapes=polygonShape(box=(30, 0.1)), )
         # wall_top = self.my_world.CreateStaticBody(position=(30, 40), shapes=polygonShape(box=(30, 0.1)), )
         # wall_left = self.my_world.CreateStaticBody(position=(0, 20), shapes=polygonShape(box=(20, 0.1)), angle=math.pi/2)
@@ -108,21 +99,11 @@ class World(object):
         obstacle_1.userData = {'color': 'obstacle'}
         obstacle_2.userData = {'color': 'obstacle'}
 
-        ##---AREA 2---##
-        # obstacle_1 = my_world.CreateStaticBody(position=(5, 12.5), shapes=polygonShape(box=(5, 2.5)))
-        # obstacle_2 = my_world.CreateStaticBody(position=(39.0, 25), shapes=polygonShape(box=(7, 1.5)), angle=math.pi / 2)
-        # obstacle_3 = my_world.CreateStaticBody(position=(33.0, 22.5), shapes=polygonShape(box=(4.5, 1.5)), angle=-math.pi / 2)
-        # obstacle_4 = my_world.CreateStaticBody(position=(32, 31), shapes=polygonShape(box=(8.5, 1.5)), angle=0)
-        # obstacle_5 = my_world.CreateStaticBody(position=(27.5, 26), shapes=polygonShape(box=(4.0, 1.0)), angle=0)
-
-
         ##---Dictionary to hold node numbers as keys their parent node number as values---##
         my_graph = {}
         ##---Dictionary to hold node numbers as keys and x,y coordinates as values---##
         self.my_grid = {}
         ##---Settings---##
-        timeStep = 1.0 / 60
-        # vel_iters, pos_iters = 6, 2
         goal_position = (6.0, 34.0)
         moveable_object_position = (obs_x, obs_y)
         moveable_object_rotation = obs_rot
@@ -133,9 +114,11 @@ class World(object):
         my_graph[0] = 0
         node_counter = 1
         start_time = time.clock()
-
         moveable_object_new_position = moveable_object_position
+
+        ##---Until we don't find the goal---##
         while (True):
+            ##---Set maximum number of nodes allowed in the tree---##
             if (node_counter < 2500):
                 if (node_counter % 8 == 0):
                     ##---FOR MOVEABLE OBSTACLE: The goal position is the "random" point---##
@@ -161,8 +144,6 @@ class World(object):
                 ##---FOR ROBOT: Get the 8 possible movements from this node---##
                 coordinates = self.calculate_coordinates(self.my_grid[closest_node_number][0], self.my_grid[closest_node_number][1], robot_x, robot_y)
 
-                # total_distances = {}
-                # ##--- Check the possible moves for collision one by one: starting with the point closest to the random point---##
                 my_counter=0
                 ##---Check for collision only with the robot: with a fully closed body to avoid problems while turning with the real robot---##
                 for n in sorted(coordinates):
@@ -173,19 +154,14 @@ class World(object):
                     body = self.my_world.CreateDynamicBody(position=(current_robot_position_x, current_robot_position_y), angle=0)
                     body.CreatePolygonFixture(vertices=test_robot, density=1, friction=1, isSensor=False)
                     for i in range(3):
-                        # Instruct the world to perform a single step of simulation. It is
-                        self.my_world.Step(timeStep, 10, 6)
+                        ##---Instruct the world to perform a single step of simulation---##
+                        self.my_world.Step(self.TIME_STEP, 10, 6)
+                    ##---If the robot didn't manage to reach its destination---##
                     if (current_robot_position != body.position):
                         del coordinates[n]
                         my_counter+=1
-
-                    #print("n: ", n)
                     self.my_world.DestroyBody(body)
 
-                # if node_counter<2:
-                #     print("coordinates dict: ", coordinates)
-
-                #print ("deleted positions: ", my_counter)
                 total_distances = {}
                 ##--- Check the possible moves for collision one by one: starting with the point closest to the random point---##
                 for n in sorted(coordinates):
@@ -214,17 +190,16 @@ class World(object):
                     loop_counter = 0
                     while(loop_counter<150 and  ( ( abs(body.worldCenter.x - abs(robot_next_x_coordinate))>0.02 ) or ( abs(body.worldCenter.y - abs(robot_next_y_coordinate))>0.02 ) )  ):
                         body.linearVelocity = (robot_next_x_coordinate-current_robot_position_x, robot_next_y_coordinate-current_robot_position_y)
-                        self.my_world.Step(timeStep, 10, 6)
+                        self.my_world.Step(self.TIME_STEP, 10, 6)
                         loop_counter+=1
                     body.linearVelocity = (0, 0)
                     body2.linearVelocity = (0, 0)
 
                     ##---If the robot managed to reach its destination---##
                     if(loop_counter<140 and ( abs(body.worldCenter.x-(robot_next_x_coordinate))<0.02 ) and ( abs(body.worldCenter.y-(robot_next_y_coordinate))<0.02 ) ):
-                        ##---Calculate distance of robot position from the random target robot position---##
                         moveable_object_new_position = (body2.worldCenter.x, body2.worldCenter.y)
                         moveable_object_rotation = body2.angle
-
+                        ##---Calculate distance of robot position from the random target robot position---##
                         distance_x = robot_new_position[0] - robot_random_position[0]
                         distance_y = robot_new_position[1] - robot_random_position[1]
                         robot_distance = np.sqrt(np.square(distance_x) + np.square(distance_y))
@@ -232,24 +207,24 @@ class World(object):
                         moveable_object_distance_x = moveable_object_new_position[0] - obstacle_random_position[0]
                         moveable_object_distance_y = moveable_object_new_position[1] - obstacle_random_position[1]
                         moveable_object_distance = np.sqrt(np.square(moveable_object_distance_x) + np.square(moveable_object_distance_y))
-                        # ##---Sum up the robot distance and the moveable object distance---##
+                        ##---Sum up the robot distance and the moveable object distance---##
                         total_distance = round(0.4*robot_distance + 0.6*moveable_object_distance, 6)
 
                         ##---Store total_distance and corresponding robot coordinates and moveable object coordinates and their rotations---##
                         total_distances[total_distance] = [robot_new_position[0], robot_new_position[1], moveable_object_new_position[0], moveable_object_new_position[1], robot_rotation, moveable_object_rotation]
                         self.my_world.DestroyBody(body)
                         self.my_world.DestroyBody(body2)
+                    ##---The robot didn't reach its destination---##
                     else:
                         self.my_world.DestroyBody(body)
                         self.my_world.DestroyBody(body2)
-                #print("\nLength of total_distances: ", len(total_distances))
 
                 ##---Find the shortest distance in the total_distances dictionary---##
                 if (len(total_distances) != 0):
                     ##---Find the lowest distance in the total_distances dictionary keys---##
                     first_key = sorted(total_distances)[0]
                     ##---Find the x and y coordinates for both the robot and the moveable object---##
-                    ##---(this state has the least distance between the robot, object and their corresponding random goals---##
+                    ##---this state has the least distance between the robot, object and their corresponding random goals---##
                     closest_point = total_distances[first_key]
                     robot_rotation_to_store = closest_point[4]
                     moveable_object_rotation_to_store = closest_point[5]
@@ -259,41 +234,30 @@ class World(object):
 
                     ##---Store new node number,  x and y coordinates of robot,  x and y coordinates of moveable obstacle, rotation of the robot and obstacle---##
                     self.my_grid[node_counter] = [closest_point[0], closest_point[1], closest_point[2], closest_point[3], robot_rotation_to_store, moveable_object_rotation_to_store]
-                    #print(my_grid[node_counter])
                     node_counter += 1
                     if (node_counter % 100 == 0):
                         print(node_counter)
 
-                #---If we are close enough to the goal---##
+                ##---If we are close enough to the goal---##
                 if (abs(goal_position[0] - closest_point[2]) < 4.0 and abs(goal_position[1] - closest_point[3]) < 4.0):
                     found_goal_position = my_graph[node_counter-1]
                     goal_node_number = node_counter-1
                     break
-            ##---If node_counter is more than the value set---##
+            ##---If maximum number of nodes has been reached---##
             else:
+                ##---Delete my_grid and my_graph and start building new ones---##
                 self.my_grid = {}
                 self.my_grid[0] = [robot_start_position[0], robot_start_position[1], moveable_object_position[0], moveable_object_position[1], robot_rotation, moveable_object_rotation]
                 my_graph = {}
                 my_graph[0] = 0
                 node_counter = 1
 
+        ##---If the robot loses the movable obstacle for any reason during execution, a new planning cycle will be started---##
+        ##---number_of_runs holds how many planning cycles have been done---##
         self.number_of_runs += 1
         print("number_of_runs:  ", self.number_of_runs)
-        print("goal_node_number: ", goal_node_number)
-        # print("grid[goal_node_number: ")
-        print(self.my_grid[goal_node_number])
 
-
-        end_time = time.clock()
-
-        time_needed = end_time - start_time
-        print("Time needed: %f s." % time_needed)
-
-        self.time_list.append(time_needed)
-        print("Times of the runs: ")
-        print(time_list)
-
-
+        ##---Trace back parent nodes of each node to get the path between the start and the goal---##
         node_number = goal_node_number
         self.shortest_path = []
         while (True):
@@ -303,15 +267,12 @@ class World(object):
             if (node_number == 0):
                 self.shortest_path.append(node_number)
                 break
-
         self.shortest_path.reverse()
-        #print("shortest path: ")
         print(self.shortest_path)
 
         ##---Create static body to mark the goal position---##
         vertices4 = [(-3.0, -1.2), (-1.2, -3.0), (1.2, -3.0), (3.0, -1.2), (3.0, 1.2), (1.2, 3.0), (-1.2, 3.0), (-3.0, 1.2)]
         body2 = self.my_world.CreateStaticBody(position=goal_position)
-        # box2 = body2.CreatePolygonFixture(vertices=vertices4, density=1)
         box2 = body2.CreatePolygonFixture(box=(5.4, 5.4), density=1)
         box2.sensor = True
         body2.userData = {'color': 'goal_position'}
@@ -321,7 +282,6 @@ class World(object):
         box4 = body4.CreatePolygonFixture(vertices=vertices2, density=1)
         box4.sensor = True
         body4.userData = {'color': 'start_position'}
-
 
         ##---Create static bodies to mark the nodes in the tree with small "dots"---##
         for key, value in self.my_grid.items():
@@ -341,7 +301,7 @@ class World(object):
             box.sensor = True
             body.userData = {'color': 'shortest_path'}
 
-
+        ##---Define colours for robot, obstacles, start- and goal positions, node position markers---##
         self.colors = {
             'obstacle': (115, 115, 115),
             'robot': (165, 0, 0),
@@ -351,7 +311,6 @@ class World(object):
             'node_marker': (0, 77, 0),
             'shortest_path': (255, 128, 223),
         }
-
 
         ##---Create a new moveable object at the moveable obstacle position---##
         body = self.my_world.CreateDynamicBody(position=moveable_object_position)
@@ -368,13 +327,15 @@ class World(object):
         robot.CreatePolygonFixture(vertices=right_short_arm, density=1, friction=1, isSensor=False)
         robot.userData = {'color': 'robot'}
 
-        # end_time = datetime.now()
-        # total_runtime = end_time - start_time
-        # print("total_runtime: %s" % (total_runtime))
+        ##---Calculate and print runtime---##
+        end_time = time.clock()
+        time_needed = end_time - start_time
+        print("Time needed: %f s." % time_needed)
 
-        # ##---Create a dynamic body for the robot at the goal position---####### ONLY FOR IMAGES IN REPORT!
-        # dynamic_body = my_world.CreateDynamicBody(position=goal_position, angle=0)
-        # box = dynamic_body.CreatePolygonFixture(vertices=vertices2, density=1, friction=0.3)
+        ##---Build a list of runtimes to see time required for each planning cycle---##
+        self.time_list.append(time_needed)
+        print("Times of the runs: ")
+        print(time_list)
 
 
 
@@ -391,7 +352,6 @@ time_list = []
 
 while (True):
     my_world = World(rob_x, rob_y, rob_rot, obs_x, obs_y, obs_rot, number_of_runs, time_list)
-    #print("Number of bodies in the world 1: ", len(my_world.my_world.bodies))
 
     grid = my_world.my_grid
 
@@ -402,7 +362,7 @@ while (True):
     counter = 0
     target_coordinate_list = []
 
-    ## Get shortest path
+    ##---Get path---##
     targetlist = my_world.shortest_path
 
     ##---Create list of the shortest path cells: for each cell get the x coordinate, y coordinate and cell number---##
@@ -415,33 +375,27 @@ while (True):
     # print("Length of targetlist: ", len(targetlist))
     goal_node = len(targetlist)-1
     printcounter = 0
-    ###print(grid)
+
     while (running):
-        # Check the event queue
+        ##---Check the event queue of the game---##
         for event in pygame.event.get():
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
-                # The user closed the window or pressed escape
                 running = False
-
-
         my_world.screen.fill((26, 26, 26, 0))
+
         robot = my_world.my_world.bodies[-1]
         moveable_obstacle = my_world.my_world.bodies[-2]
-
-        # Draw the world
+        ##---Draw the world---##
         for body in (my_world.my_world.bodies):  # or: world.bodies
             for fixture in body.fixtures:
                 shape = fixture.shape
                 vertices = [(body.transform * v) * my_world.PPM for v in shape.vertices]
                 vertices = [(v[0], my_world.SCREEN_HEIGHT - v[1]) for v in vertices]
-
-                #pygame.draw.polygon(my_world.screen, my_world.colors[body.type], vertices)
                 pygame.draw.polygon(my_world.screen, my_world.colors[body.userData['color']], vertices)
         my_world.my_world.Step(my_world.TIME_STEP, 6, 2)
-        #print("Number of bodies in the world: ", len(my_world.my_world.bodies))
+        ##---Flip the screen and try to keep at the target FPS---##
         pygame.display.flip()
         my_world.clock.tick(my_world.TARGET_FPS)
-
 
         ##---The target is the actual element of the target coordinate list---##
         target = target_coordinate_list[counter]
@@ -450,34 +404,39 @@ while (True):
         else:
             next_angle = target_coordinate_list[counter][4]
 
-
+        ##--Until we haven't reached the goal position----##
         if (goal_reached == False):
+            ##---Calculate angle to turn---##
             current_angle = robot.angle % (2*math.pi)
             angle_to_turn = (next_angle - current_angle) % (2*math.pi)
 
+            ##---Check whether the robot is turned into the right direction or not---##
             if (angle_to_turn < 0.03 and angle_to_turn > -0.03):
                 correct_angle = True
             else:
                 correct_angle = False
 
+            ##---If angle in not right yet: turn---##
             if (correct_angle == False):
                 if ((angle_to_turn>0 and angle_to_turn<math.pi) or (angle_to_turn>-2*math.pi and angle_to_turn< -math.pi)):
-                    #robot.angle += math.pi/320
                     robot.angularVelocity = (0.50)
-                    #my_world.my_world.Step(my_world.TIME_STEP, 6, 2)
                 else:
-                    #robot.angle -= math.pi / 320
                     robot.angularVelocity = (-0.50)
-                    #my_world.my_world.Step(my_world.TIME_STEP, 6, 2)
 
-            #correct_angle=True
+            ##---If the direction of the robot is correct---##
             if (correct_angle == True):
-                ##---Calculate x, y distances of the actual target and the robot body and set velocity to move towards the target---##
+                ##---If the difference between the x and y coordinates is larger than a certain threshold---##
                 if (np.square(target[0]-robot.worldCenter.x) > 0.001 or np.square(target[1]-robot.worldCenter.y) > 0.001):
+                    ##---Calculate the difference in x and y directions between the actual and the desired position---##
                     direction_x = target[0] - robot.worldCenter.x
                     direction_y = target[1] - robot.worldCenter.y
+                    ##---Calculate the distance---##
                     distance = np.sqrt(np.square(direction_x)+np.square(direction_y))
+                    ##---We don't want a fluctuating robot speed: it would go quickly when the distance is large from---##
+                    ##---the next target and gets slower and slower as the distance decreases, so we set the speed component---##
+                    ##---of the linearVelocity of the robot inversely proportional to the distance to have a nice, smooth execution---##
                     speed = 1.9 * 1/distance
+
                     robot_rotation = target[4]
                     robot.linearVelocity = (speed*direction_x, speed*direction_y)
                     moveable_obstacle.linearVelocity = (0, 0)
@@ -488,21 +447,13 @@ while (True):
                     distance_x = moveable_obstacle.worldCenter.x - robot.worldCenter.x
                     distance_y = moveable_obstacle.worldCenter.y - robot.worldCenter.y
                     distance = np.sqrt(np.square(distance_x)+np.square(distance_y))
+
+                    ##---Set a boolean variable if the robot has already get close to the movable obstacle---##
                     if(distance < 2.0): obstacle_reached = True
 
                 ##---If robot reaches the actual target point---##
                 else:
-                    # print("counter:                ", targetlist[counter])
-                    # print("robot coordinates:      ", robot.worldCenter.x, robot.worldCenter.y)
-                    # print("my_grid robot coord:    ", target[0], target[1])
-                    # print("obstacle coordinates:   ", moveable_obstacle.worldCenter.x, moveable_obstacle.worldCenter.y)
-                    # print("my_grid obstacle coord: ", target[2], target[3])
-                    # print("x difference:           ", moveable_obstacle.worldCenter.x-target[2])
-                    # print("y difference:           ", moveable_obstacle.worldCenter.y - target[3])
                     print("---------")
-
-                    # moveable_obstacle.worldCenter.x = target[2]
-                    # moveable_obstacle.worldCenter.y = target[3]
                     counter += 1
 
                 ##---If robot reaches the final goal node (within a certain threshold)---##
@@ -510,12 +461,13 @@ while (True):
                     and np.square(target_coordinate_list[goal_node][1] - robot.worldCenter.y) < 0.01):
                     goal_reached=True
 
+                ##---Stop the robot and the obstacle (if it was in drift for any reason)---##
                 robot.linearVelocity = (0, 0)
                 robot.angularVelocity = (0)
                 moveable_obstacle.linearVelocity = (0, 0)
                 moveable_obstacle.angularVelocity = (0)
 
-                ##---Check if the robot lost the obstacle or not---##
+                ##---If the robot lost the obstacle: if already got close to it but the distance is over a certain threshold now---##
                 if(obstacle_reached == True and distance > 4.0):
                     print("obstacle lost")
                     obstacle_reached = False
@@ -530,7 +482,7 @@ while (True):
                     time_list = my_world.time_list
                     break
 
-
+            ##---Print some information---##
             if (goal_reached == True and printcounter == 0):
                 print("obstacle x, y: ", round(moveable_obstacle.worldCenter.x, 2), round(moveable_obstacle.worldCenter.y, 2))
                 print("goal position: 15, 14")
@@ -570,6 +522,5 @@ while (True):
 
     pygame.quit()
     print('Done!')
-
 
 #    source activate py34

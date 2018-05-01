@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+'''
+Path planning in static environment: Fixed-size Cell decomposition method algorithm
+for circular robot base.
+Dijkstra's shortest path algorithm is Bertrand Gilles' implementation:
+http://www.gilles-bertrand.com/2014/03/dijkstra-algorithm-python-example-source-code-shortest-path.html
+'''
 import math, time
 from datetime import datetime
 import numpy as np
 import pygame
 from pygame.locals import (QUIT, KEYDOWN, K_ESCAPE)
-
-import Box2D  # The main library
-# Box2D.b2 maps Box2D.b2Vec2 to vec2 (and so on)
+import Box2D
 from Box2D.b2 import (world, polygonShape, staticBody, dynamicBody, kinematicBody, fixtureDef, circleShape)
 
 
@@ -81,7 +85,7 @@ def A_star(grid, graph, src, dest, counter, visited=[], distances={}, predecesso
             if neighbor not in visited:
                 new_distance = distances[src] + graph[src][neighbor]
 
-                # calculate euclidean distance
+                # calculate Euclidean distance
                 distance_x = dest_x_coordinate - grid[neighbor][0]
                 distance_y = dest_y_coordinate - grid[neighbor][1]
                 euclidean_distance = np.sqrt(np.square(distance_x) + np.square(distance_y))
@@ -110,13 +114,13 @@ def A_star(grid, graph, src, dest, counter, visited=[], distances={}, predecesso
 class World():
 
     def create_world_grid():
-        # CREATE DICTIONARY FOR STORING WORLD CELLS
+        ##---Create dictionary to store world cells---##
         my_world = {}
         key = 0
         for x in range(600):
             my_world[key] = [-100, -100]
             key += 1
-        # STORE x AND y COORDINATES FOR EACH CELL
+        ##---Store x and y coordinates for each cell---##
         key = 0
         for y in xrange(1, 40, 2):
             for x in xrange(1, 60, 2):
@@ -126,14 +130,14 @@ class World():
 
 
     def create_graph():
-        # BUILD A FULLY CONNECTED GRAPH OF THE WORLD: AT THE BEGINNING EVERY CELL IS
-        # CONSIDERED TO BE FREE
+        ##---BUILD A FULLY CONNECTED GRAPH OF THE WORLD: AT THE BEGINNING EVERY CELL IS---##
+        ##---CONSIDERED TO BE FREE---##
         my_graph = {}
         for key in range(600):
             my_graph[key] = {key + 30: 1, key + 31: 1.4, key + 1: 1, key - 29: 1.4, key - 30: 1, key - 31: 1.4,
                              key - 1: 1, key + 29: 1.4}
 
-        # Define list of cells for each side (corner cells not included!)
+        ##---Define list of cells for each side (corner cells not included!)---##
         left_side = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450, 480, 510, 540]
         right_side = [59, 89, 119, 149, 179, 209, 239, 269, 299, 329, 359, 389, 419, 449, 479, 509, 539, 569]
         bottom_side = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
@@ -141,7 +145,7 @@ class World():
         top_side = [571, 572, 573, 574, 575, 576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 586, 587, 588,
                     589, 590, 591, 592, 593, 594, 595, 596, 597, 598]
         for key in range(600):
-            # set connected cells of side cells (corner cells not included):
+            ##---Set connected cells of side cells (corner cells not included)---##
             if (key in left_side):
                 my_graph[key] = {key + 30: 1, key + 31: 1.4, key + 1: 1, key - 29: 1.4, key - 30: 1}
             if (key in right_side):
@@ -150,7 +154,7 @@ class World():
                 my_graph[key] = {key + 30: 1, key + 31: 1.4, key + 1: 1, key - 1: 1, key + 29: 1.4}
             if (key in top_side):
                 my_graph[key] = {key + 1: 1, key - 29: 1.4, key - 30: 1, key - 31: 1.4, key - 1: 1}
-            # set connections of corner cells:
+            ##---Set connections of corner cells---##
             if (key == 0):
                 my_graph[key] = {key + 30: 1, key + 31: 1.4, key + 1: 1}
             if (key == 29):
@@ -163,25 +167,23 @@ class World():
 
 
 
-    # --- constants ---
-    # Box2D deals with meters, but we want to display pixels,
-    # so define a conversion factor:
+    ##---Constants---##
     PPM = 20.0  # pixels per meter
     TARGET_FPS = 60
     TIME_STEP = 1.0 / TARGET_FPS
+    vel_iters, pos_iters = 6, 2
     SCREEN_WIDTH, SCREEN_HEIGHT = 1200, 800
 
-    # --- pygame setup ---
+    ##---pygame setup---##
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
     pygame.display.set_caption('Path finding: circular robot body')
     clock = pygame.time.Clock()
     start_time = datetime.now()
 
-    # --- pybox2d world setup ---
-    # Create the world
+    ##---Create the world---##
     my_world = world(gravity=(0, 0), doSleep=True)
 
-    # And a static body to hold the ground shape
+    ##---Static obstacles of the environment---##
     wall_bottom = my_world.CreateStaticBody(position=(30, 0.1), shapes=polygonShape(box=(30, 0.1)), )
     wall_top = my_world.CreateStaticBody(position=(30, 40), shapes=polygonShape(box=(30, 0.1)), )
     wall_left = my_world.CreateStaticBody(position=(0, 20), shapes=polygonShape(box=(20, 0.1)), angle=math.pi/2)
@@ -202,29 +204,31 @@ class World():
     obstacle_4.userData = {'color': 'obstacle'}
     obstacle_5.userData = {'color': 'obstacle'}
 
+    ##---Data structures---##
     my_grid = create_world_grid()
     my_graph = create_graph()
 
-    # CHECK IF CELLS ARE FREE OR OCCUPIED
-    timeStep = 1.0 / 60
-    vel_iters, pos_iters = 6, 2
+    ##---Check if cells are free or occupied---##
     key = 0
     occupied_counter = 0
     occupied_list = []
     for y in xrange(1, 40, 2):
         for x in xrange(1, 60, 2):
             start_position = (x, y)
+            ##---Create robot---##
             body = my_world.CreateDynamicBody(position=start_position)
             box = body.CreatePolygonFixture(box=(0.98, 0.98), density=1, friction=0.3)
             for i in range(3):
-                # Instruct the world to perform a single step of simulation.
-                my_world.Step(timeStep, vel_iters, pos_iters)
-
+                ##---Instruct the world to perform a single step of simulation---##
+                my_world.Step(TIME_STEP, vel_iters, pos_iters)
+            ##---If the position of the robot changes, the cell must be occupied---##
             if (start_position != body.position):
                 occupied_counter += 1
                 occupied_list.append(key)
-                my_grid[key] = (1000, 1000)  # these x and y values will denote that the cell is occupied
+                ##---Add some fictional high values for occupied cell x and y coordinates---##
+                my_grid[key] = (1000, 1000)
                 del my_graph[key]
+            ##---Destroy robot body---##
             my_world.DestroyBody(body)
             key += 1
 
@@ -286,9 +290,11 @@ class World():
             new_edge_count += 1
     print("new edgecount: %d" % new_edge_count)
 
+    ##---Set start and goal node numbers---##
     start_number = 31
     goal_number = 407
 
+    ##---Use Dijkstra's algorithm to find shortest path---##
     start_time_dijkstra = datetime.now()
     shortest_path_1, cost_1, counter_1 = dijkstra(my_graph, start_number, goal_number, 0)
     shortest_path_1.reverse()
@@ -300,6 +306,7 @@ class World():
     time_needed_dijkstra = end_time_dijkstra - start_time_dijkstra
     print("Time needed for Dijkstra's algorithm: %s s." % (time_needed_dijkstra))
 
+    ##---Use A* algorithm to find shortest path---##
     start_time_A_star = datetime.now()
     shortest_path_2, cost_2, counter_2 = A_star(my_grid, my_graph, start_number, goal_number, 0)
     shortest_path_2.reverse()
@@ -321,7 +328,7 @@ class World():
         body3.userData = {'color': 'node_marker'}
 
     ##---Draw small 'dots' along the shortest path---##
-    for number in shortest_path_1:          ##---To be used with Dijkstra's algorithm---##
+    for number in shortest_path_1:           ##---To be used with Dijkstra's algorithm---##
     #for number in shortest_path_2:          ##---To be used with the A* algorithm---##
         x = my_grid[number][0]
         y = my_grid[number][1]
@@ -330,7 +337,7 @@ class World():
         box.sensor = True
         body.userData = {'color': 'shortest_path'}
 
-
+    ##---Define vertices for start and goal positions and for the robot---##
     vertices2 = [(-0.5, -0.2), (-0.2, -0.5), (0.2, -0.5), (0.5, -0.2), (0.5, 0.2), (0.2, 0.5), (-0.2, 0.5), (-0.5, 0.2)]
 
     ##---Create static body to mark the start position---##
@@ -360,15 +367,17 @@ class World():
         'node_marker': (0, 77, 0),
         'shortest_path': (255, 128, 223),
     }
-    # print("my_grid:")
-    # print(my_grid)
+
+    ##---Calculate and print runtime---##
     end_time = datetime.now()
     total_runtime = end_time - start_time
     print("total_runtime of the algorithm: %s" % (total_runtime))
 
 
-my_world = World()
+
+
 ##---The main game loop---##
+my_world = World()
 running = True
 counter = 0
 goal_reached = False
@@ -376,23 +385,19 @@ grid = my_world.my_grid
 target_coordinate_list = []
 
 targetlist = my_world.shortest_path_1         ##  TO BE USED FOR DIJKSTRA'S
-#targetlist = my_world.shortest_path_2         ##  TO BE USED FOR A*
+#targetlist = my_world.shortest_path_2        ##  TO BE USED FOR A*
 for n in range(len(targetlist)):
     point = grid[targetlist[n]]
     target_coordinate_list.append(point)
-#print(target_coordinate_list)
 
-##print(grid)
 while running:
     ##---Check the event queue of the game---##
     for event in pygame.event.get():
         if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
             running = False
-
     my_world.screen.fill((0, 0, 0, 0))
 
     robot = my_world.my_world.bodies[-1]
-
     ##---Draw the world---##
     for body in (my_world.my_world.bodies):
         for fixture in body.fixtures:
@@ -409,7 +414,7 @@ while running:
     ##--Until we haven't reached the goal position----##
     if (goal_reached == False):
         ##---If the difference between the x and y coordinates is larger than a certain threshold---##
-        if (abs(target[0] - robot.worldCenter.x) > 0.1 or abs(target[1] - robot.worldCenter.y > 0.1)):
+        if (np.square(target[0] - robot.worldCenter.x) > 0.1 or np.square(target[1] - robot.worldCenter.y > 0.1)):
             ##---Calculate the difference in x and y directions between the actual and the desired position---##
             direction_x = target[0] - robot.worldCenter.x
             direction_y = target[1] - robot.worldCenter.y
@@ -435,7 +440,7 @@ while running:
 
 
 
-# ##---If want to show the starting situation use this part and comment out previous while loop---##
+# ##---If want to show the start situation use this part and comment out previous while loop---##
 # while running:
 #      ###Check the event queue
 #     for event in pygame.event.get():
